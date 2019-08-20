@@ -1,4 +1,4 @@
-Django OAuth Toolkit
+Django OAuth Toolkit - Alexa / JSON development fork
 ====================
 
 .. image:: https://jazzband.co/static/img/badge.svg
