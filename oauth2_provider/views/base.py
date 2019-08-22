@@ -50,14 +50,14 @@ class BaseAuthorizationView(LoginRequiredMixin, OAuthLibMixin, View):
         status = error_response["error"].status_code
         return self.render_to_response(error_response, status=status)
 
-    def redirect(self, redirect_to, application):
+    def redirect(self, redirect_to, application, content=None):
         if application is None:
             # The application can be None in case of an error during app validation
             # In such cases, fall back to default ALLOWED_REDIRECT_URI_SCHEMES
             allowed_schemes = oauth2_settings.ALLOWED_REDIRECT_URI_SCHEMES
         else:
             allowed_schemes = application.get_allowed_schemes()
-        return OAuth2ResponseRedirect(redirect_to, allowed_schemes)
+        return OAuth2ResponseRedirect(redirect_to, allowed_schemes, content=content)
 
 
 class AuthorizationView(BaseAuthorizationView, FormView):
@@ -204,6 +204,52 @@ class AuthorizationView(BaseAuthorizationView, FormView):
             return self.error_response(error, application)
 
         return self.render_to_response(self.get_context_data(**kwargs))
+
+
+class AuthorizationJSONView(AuthorizationView):
+    """
+    Modified verion of AuthorizationView that replaces URL param response with
+    JSON body response instead.
+
+    Overall class is same, except for a modification in `form_valid` to extract
+    the URL parameters for the code exchange and return them as JSON as well.
+    """
+
+    def form_valid(self, form):
+        client_id = form.cleaned_data["client_id"]
+        application = get_application_model().objects.get(client_id=client_id)
+        credentials = {
+            "client_id": form.cleaned_data.get("client_id"),
+            "redirect_uri": form.cleaned_data.get("redirect_uri"),
+            "response_type": form.cleaned_data.get("response_type", None),
+            "state": form.cleaned_data.get("state", None)
+        }
+        if form.cleaned_data.get("code_challenge", False):
+            credentials["code_challenge"] = form.cleaned_data.get("code_challenge")
+        if form.cleaned_data.get("code_challenge_method", False):
+            credentials["code_challenge_method"] = form.cleaned_data.get("code_challenge_method")
+        scopes = form.cleaned_data.get("scope")
+        allow = form.cleaned_data.get("allow")
+
+        try:
+            uri, headers, body, status = self.create_authorization_response(
+                request=self.request, scopes=scopes, credentials=credentials, allow=allow
+            )
+        except OAuthToolkitError as error:
+            return self.error_response(error, application)
+
+        from urllib.parse import urlparse, parse_qs
+        o = urlparse(uri)
+        parsed = parse_qs(o.query)
+        parsed = {i:parsed[i][0] for i in parsed}
+
+        self.success_url = uri
+        log.debug("Success url for the request: {0}".format(self.success_url))
+
+        # NEW
+        return self.redirect(
+            self.success_url, application, content=json.dumps(parsed)
+        )
 
 
 @method_decorator(csrf_exempt, name="dispatch")
