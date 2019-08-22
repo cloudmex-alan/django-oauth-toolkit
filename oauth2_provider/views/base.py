@@ -216,40 +216,17 @@ class AuthorizationJSONView(AuthorizationView):
     """
 
     def form_valid(self, form):
-        client_id = form.cleaned_data["client_id"]
-        application = get_application_model().objects.get(client_id=client_id)
-        credentials = {
-            "client_id": form.cleaned_data.get("client_id"),
-            "redirect_uri": form.cleaned_data.get("redirect_uri"),
-            "response_type": form.cleaned_data.get("response_type", None),
-            "state": form.cleaned_data.get("state", None)
-        }
-        if form.cleaned_data.get("code_challenge", False):
-            credentials["code_challenge"] = form.cleaned_data.get("code_challenge")
-        if form.cleaned_data.get("code_challenge_method", False):
-            credentials["code_challenge_method"] = form.cleaned_data.get("code_challenge_method")
-        scopes = form.cleaned_data.get("scope")
-        allow = form.cleaned_data.get("allow")
+        """
+        Call parent class form_valid method to get the response object.
+        Then we can modify the content so it's passed as JSON in the body.
+        """
+        redirect_instance = super().form_valid(form)
 
-        try:
-            uri, headers, body, status = self.create_authorization_response(
-                request=self.request, scopes=scopes, credentials=credentials, allow=allow
-            )
-        except OAuthToolkitError as error:
-            return self.error_response(error, application)
-
-        from urllib.parse import urlparse, parse_qs
-        o = urlparse(uri)
+        o = urlparse(redirect_instance.url)
         parsed = parse_qs(o.query)
         parsed = {i:parsed[i][0] for i in parsed}
-
-        self.success_url = uri
-        log.debug("Success url for the request: {0}".format(self.success_url))
-
-        # NEW
-        return self.redirect(
-            self.success_url, application, content=json.dumps(parsed)
-        )
+        redirect_instance.content = json.dumps(parsed)
+        return redirect_instance
 
 
 @method_decorator(csrf_exempt, name="dispatch")
