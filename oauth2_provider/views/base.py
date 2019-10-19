@@ -17,7 +17,8 @@ from ..scopes import get_scopes_backend
 from ..settings import oauth2_settings
 from ..signals import app_authorized
 from .mixins import OAuthLibMixin
-
+from urllib.parse import urlparse
+from urllib.parse import parse_qs
 
 log = logging.getLogger("oauth2_provider")
 

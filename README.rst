@@ -1,4 +1,4 @@
-Django OAuth Toolkit - Alexa / JSON development fork
+Django OAuth Toolkit - Alexa / JSON development fork - UPDATE FOR PYTHON 3.7
 ====================
 
 .. image:: https://jazzband.co/static/img/badge.svg
